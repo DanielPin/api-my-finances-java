@@ -28,22 +28,22 @@ public class UserService {
     @Autowired
     private UserMapper userMapper;
 
-    public User register(UserRegisterDTO registerUser) {
+    public UserResponseDTO register(UserRegisterDTO registerUser) {
         String encryptedPassword = new BCryptPasswordEncoder().encode(registerUser.password());
 
         User newUser = new User(registerUser, encryptedPassword);
-        return this.userRepository.save(newUser);
+        var savedUser = this.userRepository.save(newUser);
+
+        return userMapper.userToUserResponseDTO(savedUser);
     }
 
     public UserResponseDTO update(UserUpdateDTO userUpdate, String cpf, User authenticatedUser) {
 
+        User existingUser = this.userRepository.findByCpf(cpf.replaceAll("\\D", ""));
 
-        User existingUser = this.userRepository.findByCpf(cpf);
-
-        if(existingUser == null){
+        if (existingUser == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não localizado");
         }
-
 
         if (userUpdate.role() != null && authenticatedUser.getRole() != UserRole.ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você não tem permissão para atualizar sua role, peça a um adm");
@@ -53,21 +53,36 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você não tem permissão para atualizar este usuário.");
         }
 
-
         userMapper.updateUserFromDto(userUpdate, existingUser);
 
         var updatedUser = this.userRepository.save(existingUser);
         return userMapper.userToUserResponseDTO(updatedUser);
     }
 
-    public void delete() {
+    public void delete(String cpf, User authenticatedUser) {
+
+        User existingUser = this.userRepository.findByCpf(cpf.replaceAll("\\D", ""));
+
+        if (existingUser == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario não localizado");
+        }
+
+        if (hasNoPermission(existingUser.getId(), authenticatedUser)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você não tem permissão para deletar este usuário.");
+        }
+
+        this.userRepository.delete(existingUser);
     }
 
-    public UserResponseDTO getUserDetails(String cpf) {
-        User user = this.userRepository.findByCpf(cpf);
+    public UserResponseDTO getUserDetails(String cpf, User authenticatedUser) {
+        User user = this.userRepository.findByCpf(cpf.replaceAll("\\D", ""));
 
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+
+        if (hasNoPermission(user.getId(), authenticatedUser)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você não tem permissão para ver este usuário.");
         }
 
         return userMapper.userToUserResponseDTO(user);

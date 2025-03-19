@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequestMapping("user")
@@ -29,61 +30,38 @@ public class UserController {
     private UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity registerUser(@RequestBody @Valid UserRegisterDTO user) {
+    public ResponseEntity<UserResponseDTO> registerUser(@RequestBody @Valid UserRegisterDTO user) {
         var registeredUser = this.userService.register(user);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequestUri()
                 .replacePath("/user/details/{cpf}")
-                .buildAndExpand(registeredUser.getCpf())
+                .buildAndExpand(registeredUser.cpf())
                 .toUri();
         return ResponseEntity.created(location).body(registeredUser);
     }
 
     @PutMapping("/update/{cpf}")
-    public ResponseEntity updateUser(@PathVariable String cpf, @RequestBody @Valid UserUpdateDTO userUpdate, @AuthenticationPrincipal User authenticatedUser) {
-
-        //var user = this.userService.getUserDetails(cpf);
-
-        /*if (userUpdate.role() != null && authenticatedUser.getRole() != UserRole.ADMIN) {
-            return buildErrorResponse("Você não tem permissão para atualizar sua role, peça a um adm", HttpStatus.FORBIDDEN);
-        }
-
-        if (hasNoPermission(user.id(), authenticatedUser)) {
-            return buildErrorResponse("Você não tem permissão para atualizar este usuário.", HttpStatus.FORBIDDEN);
-        }*/
-
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable String cpf, @RequestBody @Valid UserUpdateDTO userUpdate, @AuthenticationPrincipal User authenticatedUser) {
         var registeredUser = this.userService.update(userUpdate, cpf, authenticatedUser);
-
         return ResponseEntity.ok().body(registeredUser);
     }
 
     @GetMapping("/details/{cpf}")
-    public ResponseEntity userDetails(@PathVariable String cpf, @AuthenticationPrincipal User authenticatedUser) {
-        var registeredUser = this.userService.getUserDetails(cpf);
-
-        if (hasNoPermission(registeredUser.id(), authenticatedUser)) {
-            return buildErrorResponse("Você não tem permissão para ver este usuário.", HttpStatus.FORBIDDEN);
-        }
-
+    public ResponseEntity<UserResponseDTO> userDetails(@PathVariable String cpf, @AuthenticationPrincipal User authenticatedUser) {
+        var registeredUser = this.userService.getUserDetails(cpf, authenticatedUser);
         return ResponseEntity.ok().body(registeredUser);
     }
 
     @GetMapping("/list")
-    public ResponseEntity listUsers() {
+    public ResponseEntity<List<UserResponseDTO>> listUsers() {
         var users = this.userService.listUsers();
         return ResponseEntity.ok().body(users);
     }
 
-    private ResponseEntity<ErrorResponse> buildErrorResponse(String message, HttpStatus status) {
-        ErrorResponse errorResponse = new ErrorResponse(message, status.value());
-        return new ResponseEntity<>(errorResponse, status);
+    @DeleteMapping("/delete/{cpf}")
+    public ResponseEntity<Void> deleteUser(@PathVariable String cpf, @AuthenticationPrincipal User authenticatedUser) {
+        this.userService.delete(cpf, authenticatedUser);
+        return ResponseEntity.noContent().build();
     }
-
-    private boolean hasNoPermission(String userId, User authenticatedUser) {
-        String authenticatedUsername = authenticatedUser.getId();
-        UserRole userRole = authenticatedUser.getRole();
-        return !authenticatedUsername.equals(userId) && userRole != UserRole.ADMIN;
-    }
-
 
 }
